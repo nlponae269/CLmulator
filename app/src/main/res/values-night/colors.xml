@@ -1,0 +1,9 @@
+<resources>
+    <color name="bg">#121318</color>
+    <color name="surface_card">#1E1F25</color>
+    <color name="task_bg">#2A2D45</color>
+    <color name="text_main">#E4E1E9</color>
+    <color name="text_dim">#C6C5D0</color>
+    <color name="accent">#B9C3FF</color>
+    <color name="badge">#81C784</color>
+</resources>

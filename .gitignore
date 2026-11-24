@@ -1,0 +1,12 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+captures/
+*.jks
+*.keystore
+# QEMU binaries are produced by tools/prepare_qemu.py
+app/src/main/jniLibs/
+app/src/main/assets/qemu/
