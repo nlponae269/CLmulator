@@ -61,6 +61,28 @@ class MainActivity : AppCompatActivity() {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         renderCatalog()
+        showLastCrash()
+    }
+
+    /** Показывает причину прошлого вылета (сохраняет App), чтобы её можно было скопировать и прислать. */
+    private fun showLastCrash() {
+        val f = java.io.File(filesDir, "crash.txt")
+        if (!f.exists()) return
+        val text = runCatching { f.readText() }.getOrDefault("")
+        f.delete()
+        if (text.isBlank()) return
+        val tv = TextView(this).apply {
+            this.text = text.take(6000); setTextIsSelectable(true); textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE; setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
+        MaterialAlertDialogBuilder(this).setTitle("Прошлый запуск завершился сбоем")
+            .setView(androidx.core.widget.NestedScrollView(this).apply { addView(tv) })
+            .setPositiveButton("Скопировать") { _, _ ->
+                getSystemService(android.content.ClipboardManager::class.java)
+                    .setPrimaryClip(android.content.ClipData.newPlainText("CLmulator crash", text))
+                toast("Скопировано — пришли это разработчику")
+            }
+            .setNegativeButton("Закрыть", null).show()
     }
 
     override fun onStart() {

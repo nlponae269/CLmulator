@@ -11,6 +11,17 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // если приложение упадёт — сохраняем причину, чтобы показать её при следующем запуске
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            runCatching {
+                val sw = java.io.StringWriter(); e.printStackTrace(java.io.PrintWriter(sw))
+                java.io.File(filesDir, "crash.txt").writeText(
+                    "CLmulator ${BuildConfig.VERSION_NAME} • Android ${android.os.Build.VERSION.RELEASE} • " +
+                        "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\nПоток: ${t.name}\n\n$sw")
+            }
+            prev?.uncaughtException(t, e)
+        }
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CH_VM, "Виртуальная машина", NotificationManager.IMPORTANCE_LOW))
         nm.createNotificationChannel(NotificationChannel(CH_TASK, "Загрузки и импорт", NotificationManager.IMPORTANCE_LOW))

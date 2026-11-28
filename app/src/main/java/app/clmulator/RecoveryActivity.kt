@@ -167,7 +167,9 @@ class RecoveryActivity : ComponentActivity() {
         refreshHeader()
         body.removeAllViews()
         tasksBox = null; currentIsInstall = false
-        body.addView(stack.last()())
+        val v = stack.last()()
+        (v.parent as? ViewGroup)?.removeView(v)
+        body.addView(v)
     }
 
     private fun redrawIfInstall() { if (currentIsInstall) render() }
@@ -291,7 +293,11 @@ class RecoveryActivity : ComponentActivity() {
         i.notes.forEach { label("⚠ $it", 13f, 0xFFFFCC80.toInt()) }
         val verify = check("Проверять контрольные суммы (SHA-256 / CRC / MD5)", true)
         val rebootAfter = check("Перезагрузка после установки", dev.autoReboot)
-        swipe("Свайп для прошивки") { show { flashConsole(r, verify.isChecked, rebootAfter.isChecked) } }
+        swipe("Свайп для прошивки") {
+            if (busy) return@swipe
+            val v = flashConsole(r, verify.isChecked, rebootAfter.isChecked)
+            show { v }
+        }
     }
 
     private fun flashConsole(r: Rom, verify: Boolean, rebootAfter: Boolean): View {
@@ -309,20 +315,28 @@ class RecoveryActivity : ComponentActivity() {
             setOnClickListener { cancelFlash = true; text = "Отменяю…" }
         }
         col.addView(cancel); col.addView(buttons)
-        val sb = StringBuilder()
-        fun log(s: String) = runOnUiThread {
-            sb.append(s).append('\n'); logView.text = sb
-            scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+        val record = StringBuffer()   // для файла лога (пишет фоновый поток)
+        val shown = StringBuilder()   // для экрана (только UI-поток)
+        fun log(s: String) {
+            record.append(s).append('\n')
+            runOnUiThread {
+                shown.append(s).append('\n'); logView.text = shown
+                scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+            }
         }
         busy = true; cancelFlash = false
         val d = DeviceState.load()
         Thread {
-            val ok = runCatching {
-                Flasher(this, r, verify, ::log, { p -> runOnUiThread { bar.setProgressCompat((p * 1000).toInt(), true) } }, { cancelFlash }).run(d)
-            }.getOrElse { e -> log("E: ${e.message ?: e}"); false }
-            d.lastLog = d.lastLog + "\n" + sb.toString()
-            d.save()
+            var ok = false
+            try {
+                ok = Flasher(this, r, verify, ::log, { p -> runOnUiThread { bar.setProgressCompat((p * 1000).toInt(), true) } }, { cancelFlash }).run(d)
+            } catch (e: Throwable) {
+                Log.e("flash failed", e)
+                log("E: ${e.javaClass.simpleName}: ${e.message ?: ""}")
+            }
+            try { d.lastLog = d.lastLog + "\n" + record.toString(); d.save() } catch (e: Throwable) { Log.e("save state", e) }
             runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
                 busy = false; dev = DeviceState.load(); refreshHeader()
                 cancel.visibility = View.GONE
                 title.text = if (ok) "Успешно" else "Ошибка"
@@ -614,8 +628,10 @@ class SwipeBar(ctx: Context, private val label: String, private val color: Int, 
             MotionEvent.ACTION_DOWN -> { dragging = e.x < x + height * 1.5f; parent.requestDisallowInterceptTouchEvent(true) }
             MotionEvent.ACTION_MOVE -> if (dragging) { x = (e.x - height / 2).coerceIn(0f, max); invalidate() }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (dragging && x > max * 0.85f) { x = max; invalidate(); performClick(); done() }
+                val fire = dragging && x > max * 0.85f
                 x = 0f; dragging = false; invalidate()
+                // экран меняем после того, как Android закончит обработку касания (иначе падение на некоторых прошивках)
+                if (fire) { performClick(); post { done() } }
             }
         }
         return true
