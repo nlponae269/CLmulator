@@ -11,8 +11,8 @@ android {
         applicationId = "app.clmulator"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -45,6 +45,7 @@ android {
         // QEMU и его библиотеки должны лежать на диске как файлы (исполняем через ProcessBuilder)
         jniLibs.useLegacyPackaging = true
     }
+    testOptions { unitTests.all { it.systemProperty("testdata", System.getProperty("testdata") ?: "/home/user/testdata"); it.maxHeapSize = "3g" } }
     androidResources {
         noCompress += listOf("img", "iso")
     }
@@ -56,5 +57,8 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("org.tukaani:xz:1.10")
+    implementation("org.apache.commons:commons-compress:1.27.1")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

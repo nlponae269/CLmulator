@@ -3,8 +3,8 @@
 Готовит QEMU (из пакетов Termux, aarch64) для упаковки в APK.
 
 Что делает:
-  1. Качает индекс пакетов Termux и нужные .deb (qemu-system-x86-64-headless + зависимости).
-  2. Вычисляет замыкание DT_NEEDED для бинарника qemu-system-x86_64.
+  1. Качает индекс пакетов Termux и нужные .deb (qemu-system-x86-64 и qemu-system-aarch64 headless + зависимости).
+  2. Вычисляет замыкание DT_NEEDED для бинарников qemu-system-x86_64 и qemu-system-aarch64.
   3. Переименовывает все библиотеки в вид lib*.so (Android распаковывает из APK только такие),
      правя имена прямо в .dynstr (новое имя всегда не длиннее старого, поэтому без patchelf).
   4. Кладёт всё в app/src/main/jniLibs/arm64-v8a, а BIOS-файлы в app/src/main/assets/qemu.
@@ -97,7 +97,8 @@ def new_name(soname):
 def main():
     os.makedirs(WORK, exist_ok=True)
     pk = parse_index(gzip.decompress(fetch(REPO + "dists/stable/main/binary-aarch64/Packages.gz")))
-    pkgs = [p for p in closure(pk, ["qemu-system-x86-64-headless", "qemu-common"]) if p not in ("python",)]
+    pkgs = [p for p in closure(pk, ["qemu-system-x86-64-headless", "qemu-system-aarch64-headless", "qemu-common"])
+            if p not in ("python",)]
     rootdir = os.path.join(WORK, "root")
     debs = os.path.join(WORK, "debs")
     os.makedirs(debs, exist_ok=True)
@@ -111,7 +112,8 @@ def main():
     usr = os.path.join(rootdir, PREFIX)
     libdir = os.path.join(usr, "lib")
     qemu = os.path.join(usr, "bin", "qemu-system-x86_64")
-    libs, stack = {}, needed(qemu)
+    qemu_arm = os.path.join(usr, "bin", "qemu-system-aarch64")
+    libs, stack = {}, needed(qemu) + needed(qemu_arm)
     while stack:
         s = stack.pop()
         if s in libs or s in SYSTEM_LIBS:
@@ -127,7 +129,7 @@ def main():
 
     shutil.rmtree(JNI, ignore_errors=True)
     os.makedirs(JNI)
-    items = [(qemu, "libqemu_x86_64.so")] + [(libs[s], renames[s]) for s in libs]
+    items = [(qemu, "libqemu_x86_64.so"), (qemu_arm, "libqemu_aarch64.so")] + [(libs[s], renames[s]) for s in libs]
     for src, dst in items:
         data = bytearray(open(src, "rb").read())
         for old, new in renames.items():
