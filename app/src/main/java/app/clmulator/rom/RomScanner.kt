@@ -32,7 +32,8 @@ class ScanResult {
     val packedPartitions = ArrayList<Pair<String, Long>>()
     var productName: String? = null
     var productVersion: String? = null
-    val verifyLog = ArrayList<String>()
+    /** разобранные boot-образы (заполняет RomAnalyzer): путь/имя раздела → образ */
+    var parsedBoots: List<Pair<String, BootImage>> = emptyList()
     var verifyErrors = 0
 
     fun text(pred: (String) -> Boolean): Pair<String, String>? =

@@ -49,7 +49,7 @@ class RomScanTest {
             val p = pl.partition(name)!!
             assertEquals("SHA-256 $name", 0, pl.verify(p))
             val out = File(dir, "$name.img")
-            RandomAccessFile(out, "rw").use { pl.extract(p, it) }
+            RandomAccessFile(out, "rw").use { pl.extract(p, it.channel) }
             assertEquals(p.size, out.length())
         }
         val vb = File(dir, "vbmeta.img").readBytes()

@@ -4,7 +4,8 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.tukaani.xz.XZInputStream
 import java.io.IOException
 import java.io.InputStream
-import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 import java.security.MessageDigest
 
 /** Минимальный читатель protobuf (без генерации классов). */
@@ -168,26 +169,28 @@ class Payload(val src: Source) {
 
     fun partition(name: String) = partitions.firstOrNull { it.name == name }
 
-    /** Распаковка раздела в файл. progress(сделано, всего) — в байтах несжатых данных. */
-    fun extract(p: Partition, out: RandomAccessFile, progress: (Long, Long) -> Unit = { _, _ -> }, cancelled: () -> Boolean = { false }) {
+    /** Распаковка раздела в файл (FileChannel). progress(сделано, всего) — в байтах несжатых данных. */
+    fun extract(p: Partition, out: FileChannel, progress: (Long, Long) -> Unit = { _, _ -> }, cancelled: () -> Boolean = { false }) {
         if (p.incremental) throw IOException("${p.name}: это инкрементальное обновление — нужна предыдущая версия прошивки")
-        out.setLength(p.size)
+        // нулевые блоки не пишем: файл разрежённый, достаточно задать длину
+        if (p.size > 0) out.write(ByteBuffer.wrap(ByteArray(1)), p.size - 1)
         val buf = ByteArray(1 shl 16)
         var done = 0L
         for (op in p.ops) {
             if (cancelled()) throw InterruptedException()
             when (op.type) {
-                OP_ZERO, OP_DISCARD -> { /* файл уже заполнен нулями (разрежённый) */ }
+                OP_ZERO, OP_DISCARD -> {}
                 OP_REPLACE, OP_REPLACE_BZ, OP_REPLACE_XZ -> {
                     decoder(op).use { inp ->
                         var i = 0
                         while (i < op.dst.size) {
                             var left = op.dst[i + 1] * blockSize
-                            out.seek(op.dst[i] * blockSize)
+                            var pos = op.dst[i] * blockSize
                             while (left > 0) {
                                 val n = inp.read(buf, 0, minOf(buf.size.toLong(), left).toInt())
                                 if (n <= 0) break
-                                out.write(buf, 0, n)
+                                val bb = ByteBuffer.wrap(buf, 0, n)
+                                while (bb.hasRemaining()) pos += out.write(bb, pos)
                                 left -= n
                             }
                             i += 2

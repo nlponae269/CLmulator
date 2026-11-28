@@ -56,6 +56,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.fabImport).setOnClickListener { pickFile.launch(arrayOf("*/*")) }
         findViewById<View>(R.id.btnInfo).setOnClickListener { showInfo() }
         findViewById<View>(R.id.btnSettings).setOnClickListener { showGlobalSettings() }
+        findViewById<View>(R.id.btnRecovery).setOnClickListener { startActivity(Intent(this, RecoveryActivity::class.java)) }
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
@@ -65,6 +66,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         MachineStore.addListener(refresh)
+        RomStore.addListener(refresh)
         QemuManager.addListener(refresh)
         Tasks.addListener(refreshTasks)
         render(); renderTasks()
@@ -72,6 +74,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         MachineStore.removeListener(refresh)
+        RomStore.removeListener(refresh)
         QemuManager.removeListener(refresh)
         Tasks.removeListener(refreshTasks)
         super.onStop()
@@ -96,7 +99,41 @@ class MainActivity : AppCompatActivity() {
             repeat(cols - row.size) { line.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f)) }
             machinesBox.addView(line)
         }
+        renderPhoneRoms()
         renderCatalog()
+    }
+
+    // ------------------------------------------------------------ прошивки телефонов
+
+    private fun renderPhoneRoms() {
+        val box = findViewById<LinearLayout>(R.id.phoneRoms)
+        box.removeAllViews()
+        val installed = DeviceState.load().installedRom
+        RomStore.list(this).forEach { r ->
+            val i = r.info(this)
+            val v = LayoutInflater.from(this).inflate(R.layout.item_catalog, box, false)
+            v.findViewById<TextView>(R.id.badge).apply {
+                text = i.androidVersion.ifEmpty { "?" }
+                background = gradient(0xFF546E7A.toInt(), 0xFF263238.toInt(), dp(20).toFloat())
+            }
+            v.findViewById<TextView>(R.id.title).text = (if (i.vendor.isNotEmpty()) i.vendor + " " else "") + i.title
+            v.findViewById<TextView>(R.id.note).text = i.typeTitle + (if (i.device.isNotEmpty()) " • ${i.device}" else "")
+            v.findViewById<TextView>(R.id.meta).text = buildString {
+                append(fmtSize(r.size))
+                if (i.soc.isNotEmpty()) append(" · ${i.soc}")
+                if (r.hasKernelFiles) append(" · ядро ARM64")
+                if (r.id == installed) append(" · установлена")
+            }
+            v.findViewById<MaterialButton>(R.id.action).apply {
+                text = "Рекавери"
+                setOnClickListener { startActivity(Intent(this@MainActivity, RecoveryActivity::class.java)) }
+            }
+            v.setOnLongClickListener {
+                confirm("Удалить «${r.name}» из списка?", "Сам файл прошивки на телефоне останется.") { RomStore.delete(this, r) }
+                true
+            }
+            box.addView(v)
+        }
     }
 
     private fun machineCard(m: Machine, parent: LinearLayout): View {
@@ -362,12 +399,15 @@ class MainActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this).setTitle("О CLmulator")
             .setMessage(
                 "CLmulator ${BuildConfig.VERSION_NAME}\n\n" +
-                    "Запускает старые версии Android (1.6 – 9.0) внутри эмулятора QEMU прямо на телефоне. " +
+                    "Запускает Android-x86 (1.6 – 9.0) внутри эмулятора QEMU прямо на телефоне. " +
                     "Используются сборки проекта Android-x86: процессор x86 эмулируется программно (TCG), " +
                     "поэтому root и KVM на телефоне не нужны, но скорость ниже, чем у настоящего устройства.\n\n" +
                     "Управление: касание — нажатие; два пальца вверх/вниз — прокрутка; кнопки справа — Назад, Домой, Меню, клавиатура, питание.\n\n" +
-                    "Прошивки реальных телефонов (Samsung .tar.md5, Xiaomi .zip, recovery.img и т.п.) запустить нельзя: " +
-                    "они собраны под конкретный процессор и железо. Импортируйте ISO или образ диска x86.\n\n" +
+                    "Прошивки телефонов (HyperOS/MIUI .zip и .tgz, Samsung .tar.md5, Pixel, OnePlus, Huawei UPDATE.APP, Unisoc .pac, " +
+                    "MediaTek scatter, Motorola, LineageOS и др.) импортируются в CLM Recovery: разбор, проверка контрольных сумм, " +
+                    "«прошивка» в виртуальный телефон, извлечение boot.img и настоящий запуск ядра в QEMU ARM64. " +
+                    "Целиком до рабочего стола они не загрузятся — им нужно своё железо (Snapdragon/MediaTek, GPU, модем). " +
+                    "Полностью запускаются x86-прошивки (ISO или .zip с ISO).\n\n" +
                     "Компоненты: QEMU (GPL-2.0, сборка Termux), Android-x86 (Apache-2.0 / GPL)."
             )
             .setPositiveButton("OK", null).show()

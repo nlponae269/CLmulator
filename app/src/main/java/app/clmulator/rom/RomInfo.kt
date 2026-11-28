@@ -151,6 +151,7 @@ object RomAnalyzer {
                 .forEach { (_, v) -> parseProps(String(v, Charsets.UTF_8), props, overwrite = false) } }
         }
         val allBoots = payloadBoots + boots
+        s.parsedBoots = allBoots
         val kernelBoot = allBoots.firstOrNull { it.second.hasKernel && it.second.kind == "boot" && it.first.substringAfterLast('/').startsWith("boot") }
             ?: allBoots.firstOrNull { it.second.hasKernel }
         kernelBoot?.second?.let { b ->

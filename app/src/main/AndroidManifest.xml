@@ -37,6 +37,24 @@
             android:theme="@style/Theme.CLmulator.Fullscreen"
             android:windowSoftInputMode="adjustResize|stateHidden" />
 
+        <activity
+            android:name=".RecoveryActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
+            android:exported="false"
+            android:theme="@style/Theme.CLmulator.Recovery" />
+
+        <activity
+            android:name=".SimBootActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
+            android:exported="false"
+            android:theme="@style/Theme.CLmulator.Fullscreen" />
+
+        <activity
+            android:name=".KernelBootActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
+            android:exported="false"
+            android:theme="@style/Theme.CLmulator.Recovery" />
+
         <service
             android:name=".VmService"
             android:exported="false"

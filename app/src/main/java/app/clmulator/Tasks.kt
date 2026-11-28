@@ -46,7 +46,7 @@ object Tasks {
         changed(true)
     }
 
-    private fun start(ctx: Context, t: BgTask, body: (BgTask) -> Unit) {
+    internal fun start(ctx: Context, t: BgTask, body: (BgTask) -> Unit) {
         synchronized(tasks) { tasks[t.id] = t }
         changed(true)
         ctx.startForegroundService(Intent(ctx, TaskService::class.java))
@@ -160,18 +160,11 @@ object Tasks {
 
     fun import(ctx: Context, uri: Uri) {
         val name = displayName(ctx, uri) ?: "image.iso"
+        // прошивки телефонов (.zip, .tgz, .tar.md5, .pac, UPDATE.APP, boot.img и т.д.) — в рекавери
+        if (RomTasks.looksLikePhoneRom(ctx, uri, name)) { RomTasks.importRom(ctx, uri, name); return }
         val t = BgTask("imp-" + System.currentTimeMillis(), "Импорт прошивки", name)
         start(ctx, t) {
             val lower = name.lowercase()
-            if (lower.endsWith(".tar") || lower.endsWith(".md5") || lower.endsWith(".zip") || lower.endsWith(".lz4") ||
-                lower.endsWith(".7z") || lower.endsWith(".rar") || lower.endsWith(".ozip") || lower.endsWith(".kdz")
-            ) {
-                throw IllegalArgumentException(
-                    "Это прошивка реального телефона (Odin/Recovery/OTA). Она собрана под конкретный процессор " +
-                        "(Exynos/Snapdragon/MediaTek) и в эмуляторе не запустится. Нужен ISO или образ диска x86 " +
-                        "(например, Android-x86)."
-                )
-            }
             val safe = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
             val dst = File(MachineStore.images(ctx), safe)
             if (!dst.exists()) {
@@ -250,7 +243,7 @@ object Tasks {
         tmp.renameTo(dst)
     }
 
-    private fun copyWithProgress(t: BgTask, inp: InputStream, dst: File, total: Long, what: String) {
+    internal fun copyWithProgress(t: BgTask, inp: InputStream, dst: File, total: Long, what: String) {
         dst.outputStream().use { os ->
             val buf = ByteArray(1 shl 16)
             var got = 0L
@@ -272,13 +265,13 @@ object Tasks {
         }
     }
 
-    private fun displayName(ctx: Context, uri: Uri): String? = runCatching {
+    internal fun displayName(ctx: Context, uri: Uri): String? = runCatching {
         ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null
         }
     }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/')
 
-    private fun fileSize(ctx: Context, uri: Uri): Long = runCatching {
+    internal fun fileSize(ctx: Context, uri: Uri): Long = runCatching {
         ctx.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use {
             if (it.moveToFirst()) it.getLong(0) else -1L
         }
